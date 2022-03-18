@@ -121,227 +121,7 @@ class GCNBlock(nn.Module):      ##  input_size, num_T
         t2 = F.relu(torch.matmul(lfs, self.Theta1))
         return t2
 
-class TSCN(nn.Module):   ###256采样  ###时空 TSception
-    def __init__(self, num_classes, input_size,  num_T, num_S, hiden, dropout_rate):
-        # input_size: EEG channel x datapoint
-        super(TSCN, self).__init__()  # 子类把父类的__init__()放到自己的__init__()当中
 
-        # by setting the convolutional kernel being (1,lenght) and the strids being 1 we can use conv2d to
-        # achieve the 1d convolution operation
-        self.Tception1 = nn.Sequential(
-            nn.Conv2d(input_size[0], num_T, kernel_size=(1, 7), stride=1, padding=0),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(1, 2), stride=(1, 2)))
-        self.Tception2 = nn.Sequential(
-            nn.Conv2d(input_size[0], num_T, kernel_size=(1, 5), stride=1, padding=0),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(1, 2), stride=(1, 2)))
-        self.Tception3 = nn.Sequential(
-            nn.Conv2d(input_size[0], num_T, kernel_size=(1, 3), stride=1, padding=0),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(1, 2), stride=(1, 2)))
-        self.Tception = nn.Sequential(
-            nn.Conv2d(input_size[0], input_size[0], kernel_size=(1, 8), stride=(1, 4), padding=0),
-            nn.ReLU(), )
-        self.Sception1 = nn.Sequential(
-            nn.Conv2d(num_T, num_S, kernel_size=(30, 1), stride=1, padding=0),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(1, 2), stride=(1, 2)))
-        self.Sception2 = nn.Sequential(
-            nn.Conv2d(num_T, num_S, kernel_size=(15, 1), stride=(15, 1), padding=0),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(1, 2), stride=(1, 2)))
-
-        self.BN_t = nn.BatchNorm2d(num_T)  # 进行数据的归一化处理
-        self.BN_s = nn.BatchNorm2d(num_S)
-        size = self.get_size(input_size)
-
-        self.fc1 = nn.Sequential(
-            nn.Linear(size[1], hiden),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate))
-
-        self.fc3 = nn.Sequential(
-            nn.Linear(hiden, num_classes),
-            nn.LogSoftmax())
-
-
-
-    def forward(self, x):
-        # print(x.size())
-        # print(type(x))
-
-        x=self.Tception (x)
-        y = self.Tception1(x)
-        out = y
-        y = self.Tception2(x)
-        out = torch.cat((out, y), dim=-1)  # 行连接
-        y = self.Tception3(x)
-        out = torch.cat((out, y), dim=-1)
-        out = self.BN_t(out)
-
-        z = self.Sception1(out)
-        out_final = z
-        z = self.Sception2(out)
-        out_final = torch.cat((out_final, z), dim=2)
-        out = self.BN_s(out_final)
-
-        out = out.view(out.size()[0], -1)  # 拉伸成一行
-        self.feature = out
-        # print(out.size())
-        out = self.fc1(out)
-        out = self.fc3(out)
-        # print(out.size())
-        return out
-
-    def get_size(self, input_size):
-        # here we use and array with the shape being
-        # (1(mini-batch),1(convolutional channel),EEG channel,time data point)
-        # to simulate the input data and get the output size
-        data = torch.ones((1, input_size[0], input_size[1], input_size[2]))
-        data = self.Tception(data)
-        y = self.Tception1(data)
-        out = y
-        y = self.Tception2(data)
-        out = torch.cat((out, y), dim=-1)
-        y = self.Tception3(data)
-        out = torch.cat((out, y), dim=-1)
-        out = self.BN_t(out)
-        z = self.Sception1(out)
-        out_final = z
-        z = self.Sception2(out)
-        out_final = torch.cat((out_final, z), dim=2)
-        out = self.BN_s(out_final)
-        out = out.view(out.size()[0], -1)
-        return out.size()
-# class TSCN(nn.Module):
-#
-#     def __init__(self, num_classes, input_size, num_T, num_S,
-#                  hiden,dropout_rate):
-#
-#         super(TSCN, self).__init__()
-#
-#         self.Get_timefeatures = Tblock3(input_size=input_size, num_T=num_T, )  ###为了得到时间特征的个数 Tsize
-#
-#         self.BN_s = nn.BatchNorm2d(num_S)
-#
-#         self.Sception1 = nn.Sequential(
-#             nn.Conv2d(num_T, num_S, kernel_size=(30, 1), stride=1, padding=0),
-#             nn.ReLU(),
-#             nn.AvgPool2d(kernel_size=(1, 1), stride=(1, 1)))
-#         self.Sception2 = nn.Sequential(
-#             nn.Conv2d(num_T, num_S, kernel_size=(15, 1), stride=(15, 1), padding=0),
-#             nn.ReLU(),
-#             nn.AvgPool2d(kernel_size=(1, 1), stride=(1, 1)))
-#         self.Sception3 = nn.Sequential(
-#             nn.Conv2d(num_T, num_S, kernel_size=(1, 1), stride=(1, 1), padding=0),
-#             nn.ReLU(),
-#             nn.AvgPool2d(kernel_size=(1, 1), stride=(1, 1)))
-#
-#         size = self.get_size(input_size)
-#
-#         self.fc1 = nn.Sequential(
-#             nn.Linear(size[1], hiden),
-#             nn.ReLU(),
-#             nn.Dropout(dropout_rate))
-#         self.fc2 = nn.Sequential(
-#             nn.Linear(hiden, num_classes),
-#             nn.LogSoftmax())
-#
-#
-#     def forward(self,X ):
-#
-#         out = self.Get_timefeatures(X)  ### B*9*30*Tfetures
-#         z = self.Sception1(out)
-#         out_final = z
-#         z = self.Sception2(out)
-#         out_final = torch.cat((out_final, z), dim=2)
-#         z = self.Sception3(out)
-#         out_final = torch.cat((out_final, z), dim=2)
-#         out = self.BN_s(out_final)
-#         out = out.view(out.size()[0], -1)
-#         self.feature = out
-#         out= self.fc1(out)
-#         out=self.fc2(out)
-#         return out
-#
-#
-#     def get_size(self, input_size):
-#         data = torch.ones((1, input_size[0], input_size[1], input_size[2]))
-#         out=self.Get_timefeatures(data)
-#         z = self.Sception1(out)
-#         out_final = z
-#         z = self.Sception2(out)
-#         out_final = torch.cat((out_final, z), dim=2)
-#         z = self.Sception3(out)
-#         out_final = torch.cat((out_final, z), dim=2)
-#         out = self.BN_s(out_final)
-#         out = out.view(out.size()[0], -1)
-#
-#         return out.size()
-
-# class TCN2(nn.Module):
-#
-#     def __init__(self, num_classes, input_size, num_T, num_S,
-#                  hiden,dropout_rate):
-#
-#         super(TCN2, self).__init__()
-#
-#         self.Get_timefeatures = Tblock3(input_size=input_size, num_T=num_T, )  ###为了得到时间特征的个数 Tsize
-#
-#         self.BN_s = nn.BatchNorm2d(num_S)
-#
-#         self.Sception1 = nn.Sequential(
-#             nn.Conv2d(num_T, num_S, kernel_size=(30, 1), stride=1, padding=0),
-#             nn.ReLU(),
-#             nn.AvgPool2d(kernel_size=(1, 2), stride=(1, 2)))
-#         self.Sception2 = nn.Sequential(
-#             nn.Conv2d(num_T, num_S, kernel_size=(15, 1), stride=(15, 1), padding=0),
-#             nn.ReLU(),
-#             nn.AvgPool2d(kernel_size=(1, 2), stride=(1, 2)))
-#         self.conv = nn.Sequential(
-#             nn.Conv2d(num_S, num_S, kernel_size=(3, 1), stride=(1, 1), padding=0),
-#             nn.ReLU(),
-#         )
-#
-#         size = self.get_size(input_size)
-#
-#         self.fc1 = nn.Sequential(
-#             nn.Linear(size[1], hiden),
-#             nn.ReLU(),
-#             nn.Dropout(dropout_rate))
-#         self.fc2 = nn.Sequential(
-#             nn.Linear(hiden, num_classes),
-#             nn.LogSoftmax())
-#
-#
-#     def forward(self,X ):
-#
-#         out = self.Get_timefeatures(X)  ### B*9*30*Tfetures
-#         z = self.Sception1(out)
-#         out_final = z
-#         z = self.Sception2(out)
-#         out_final = torch.cat((out_final, z), dim=2)
-#         out_final = self.conv(out_final)
-#         out = self.BN_s(out_final)
-#         out = out.view(out.size()[0], -1)
-#         out= self.fc1(out)
-#         out=self.fc2(out)
-#         return out
-#
-#
-#     def get_size(self, input_size):
-#         data = torch.ones((1, input_size[0], input_size[1], input_size[2]))
-#         out=self.Get_timefeatures(data)
-#         z = self.Sception1(out)
-#         out_final = z
-#         z = self.Sception2(out)
-#         out_final = torch.cat((out_final, z), dim=2)
-#         out_final = self.conv(out_final)
-#         out = self.BN_s(out_final)
-#         out = out.view(out.size()[0], -1)
-#
-#         return out.size()
 
 
 #used
@@ -513,12 +293,12 @@ class GCNmodel3(nn.Module):
         # out=self.fc2(out)
         return out
 
-class TS_DGCHN(nn.Module):
+class MTS_DGCHN(nn.Module):
 
     def __init__(self, num_classes, input_size, num_T, num_S,GCN_hiden1,GCN_hiden2,GCN_hiden3,
                  hiden,dropout_rate):
 
-        super(TS_DGCHN, self).__init__()
+        super(MTS_DGCHN, self).__init__()
 
         self.Get_T = TCNmodel2(input_size=input_size, num_T=num_T, num_S=num_S)  ###为了得到时间特征的个数 Tsize
 
@@ -573,44 +353,7 @@ class TS_DGCHN(nn.Module):
         return out.size()
 
 
-class MLP(nn.Module):
 
-    def __init__(self, num_classes, input_size,
-                 hiden,dropout_rate):
-
-        super(MLP, self).__init__()
-
-        size = self.get_size(input_size=input_size)
-
-        self.fc1 = nn.Sequential(
-            nn.Linear(size[1], hiden),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate))
-        self.fc2 = nn.Sequential(
-            nn.Linear(hiden, num_classes),
-            nn.LogSoftmax())
-
-
-    def forward(self,X ):
-        self.raw =X
-        out=X
-        out = out.view(out.size()[0], -1)
-
-        out= self.fc1(out)
-        out=self.fc2(out)
-        return out
-
-    def get_size(self, input_size):
-        data = torch.ones((1, input_size[0], input_size[1], input_size[2]))
-        out = data
-        out = out.view(out.size()[0], -1)
-        return out.size()
 # if __name__ == "__main__":
-#     # model = DGCNN(3, (1, 30, 32), 9, 6,20,16,12,128,0.2)
-#     # model = AMCNNDGCN(3, (1, 30, 256), 9, 6, 20, 16, 12, 128, 0.2)
-#     #model = TGCN_withGCNlayer2(3, (1, 30, 256), 9, 6, 128,   43,    128, 0.2)
-#     model = TGCN5(3, (1, 30, 256), 9, 6, 128, 98,  43,    128, 0.2)
-#     print(model.parameters())
-#     for name, param in model.named_parameters():
-#         if param.requires_grad:
-#             print(name)
+
+#     model = MTS_DGCHN(3, (1, 30, 256), 12, 18, 192, 128,  43,    512, 0.2)
